@@ -35,6 +35,16 @@ app.whenReady().then(async () => {
   });
 });
 
+// ── Focus restoration ─────────────────────────────────────────────────────────
+// When a native dialog (window.confirm / window.alert) steals OS focus,
+// Electron does not automatically return keyboard focus to the webContents
+// when the dialog closes. This makes inputs appear normal but unresponsive.
+// Calling webContents.focus() whenever the BrowserWindow regains focus
+// ensures the renderer's event loop receives keyboard input again.
+app.on('browser-window-focus', (_, win) => {
+  win.webContents.focus();
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });

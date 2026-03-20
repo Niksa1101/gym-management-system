@@ -44,9 +44,18 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
   const [payAmount, setPayAmount] = useState('');
 
   const searchRef = useRef(null);
+  const flashTimerRef = useRef(null);
 
-  // Focus search on open
-  useEffect(() => { searchRef.current?.focus(); }, []);
+  // Focus search on open + Escape to close + cleanup on unmount
+  useEffect(() => {
+    searchRef.current?.focus();
+    const handleKeyDown = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    };
+  }, [onClose]);
 
   // Debounced search
   useEffect(() => {
@@ -206,7 +215,8 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
         visitType: effectiveVisitType,
         locker: lockerKey,
       });
-      setTimeout(() => setSuccessFlash(null), 3500);
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = setTimeout(() => setSuccessFlash(null), 3500);
 
       resetForm();
       onSuccess(); // refresh daily log in background
@@ -218,7 +228,10 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
   const payCategories = payType && payType !== 'fitpass' ? (MEMBERSHIP_CATEGORIES[payType] || []) : [];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col"
          style={{ minHeight: '620px', maxHeight: '92vh' }}>
 
