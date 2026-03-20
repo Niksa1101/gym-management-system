@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { todayStr, formatDate, weekRange, monthRange, MEMBERSHIP_TYPES } from '../../lib/constants';
+import { useConfirm } from '../ConfirmDialog';
 
 const TABS = [
   { id: 'day',   label: 'Dan' },
@@ -18,6 +19,7 @@ export default function PaymentsPage() {
   const [refDate, setRefDate] = useState(todayStr());
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const [startDate, endDate] = tab === 'day'
     ? [refDate, refDate]
@@ -38,7 +40,10 @@ export default function PaymentsPage() {
   useEffect(() => { load(); }, [load]);
 
   async function handleDelete(id) {
-    if (!window.confirm('Obrisati ovaj zapis o uplati?')) return;
+    const ok = await confirm('Obrisati ovaj zapis o uplati?', {
+      title: 'Obrisi uplatu', confirmLabel: 'Obrisi', danger: true,
+    });
+    if (!ok) return;
     await window.api.deletePayment(id);
     load();
   }
@@ -62,6 +67,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="h-full flex flex-col">
+      {ConfirmDialog}
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">

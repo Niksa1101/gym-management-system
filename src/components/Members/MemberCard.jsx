@@ -9,6 +9,7 @@ import {
 } from '../../lib/constants';
 import MemberForm from './MemberForm';
 import MembershipForm from './MembershipForm';
+import { useConfirm } from '../ConfirmDialog';
 
 export default function MemberCard({ memberId, onDeleted, onUpdated }) {
   const [member, setMember] = useState(null);
@@ -18,6 +19,7 @@ export default function MemberCard({ memberId, onDeleted, onUpdated }) {
   const [editingMember, setEditingMember] = useState(false);
   const [addingMembership, setAddingMembership] = useState(false);
   const [expandedHistoryIds, setExpandedHistoryIds] = useState(new Set());
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,20 +63,30 @@ export default function MemberCard({ memberId, onDeleted, onUpdated }) {
   }
 
   async function handleDelete() {
-    if (!window.confirm(`Obrisati ${member.name} ${member.surname}? Ovo ce ukloniti sve njihove podatke.`)) return;
+    const ok = await confirm(
+      `Obrisati ${member.name} ${member.surname}? Ovo ce ukloniti sve njihove podatke.`,
+      { title: 'Obrisi clana', confirmLabel: 'Obrisi', danger: true }
+    );
+    if (!ok) return;
     await window.api.deleteMember(memberId);
     onDeleted();
   }
 
   async function handleDeactivateMembership(msId) {
-    if (!window.confirm('Deaktivirati ovu clanarinu?')) return;
+    const ok = await confirm('Deaktivirati ovu clanarinu?', {
+      title: 'Deaktiviraj clanarinu', confirmLabel: 'Deaktiviraj', danger: true,
+    });
+    if (!ok) return;
     await window.api.deactivateMembership(msId);
     load();
     onUpdated();
   }
 
   async function handlePauseMembership(msId) {
-    if (!window.confirm('Pauzirati ovu clanarinu?')) return;
+    const ok = await confirm('Pauzirati ovu clanarinu?', {
+      title: 'Pauziraj clanarinu', confirmLabel: 'Pauziraj', danger: false,
+    });
+    if (!ok) return;
     await window.api.pauseMembership(msId);
     load();
     onUpdated();
@@ -120,6 +132,7 @@ export default function MemberCard({ memberId, onDeleted, onUpdated }) {
 
   return (
     <div className="h-full overflow-auto scrollbar-thin">
+      {ConfirmDialog}
       <div className="p-6 max-w-2xl mx-auto space-y-5">
 
         {/* Member header */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { todayStr, formatDateLong, formatMembershipLabel, LOCKER_KEYS, formatDate } from '../../lib/constants';
 import CheckInModal from './CheckInModal';
+import { useConfirm } from '../ConfirmDialog';
 
 export default function DailyLogPage({ onMemberClick }) {
   const [selectedDate, setSelectedDate] = useState(todayStr());
@@ -8,6 +9,7 @@ export default function DailyLogPage({ onMemberClick }) {
   const [loading, setLoading] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showLostKey, setShowLostKey] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const loadLog = useCallback(async () => {
     setLoading(true);
@@ -22,7 +24,10 @@ export default function DailyLogPage({ onMemberClick }) {
   useEffect(() => { loadLog(); }, [loadLog]);
 
   async function handleDeleteEntry(id) {
-    if (!window.confirm('Ukloniti ovaj unos?')) return;
+    const ok = await confirm('Ukloniti ovaj unos?', {
+      title: 'Ukloni unos', confirmLabel: 'Ukloni', danger: true,
+    });
+    if (!ok) return;
     await window.api.deleteAttendance(id);
     loadLog();
   }
@@ -33,6 +38,7 @@ export default function DailyLogPage({ onMemberClick }) {
 
   return (
     <div className="h-full flex flex-col">
+      {ConfirmDialog}
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
