@@ -131,6 +131,7 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
   }
 
   const memberExpired = activeMembership && isExpired(activeMembership);
+  const memberPaused = activeMembership && !!activeMembership.is_paused;
   const noMembership = selectedMember && !activeMembership && !isFitpass(visitType);
 
   // A real membership will be created when payment is recorded for a non-fitpass type
@@ -149,7 +150,8 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
 
   const needsAck = (memberExpired && !isFitpass(visitType) && !expiredAck)
     || (noMembership && !noMsAck)
-    || needsReplaceConfirm;
+    || needsReplaceConfirm
+    || memberPaused;
 
   async function handleSubmit() {
     if (!selectedMember || needsAck || submitting) return;
@@ -339,6 +341,14 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
               ) : (
                 <p className="text-xs text-gray-400 mt-1">Nema aktivne clanarine</p>
               )}
+              {memberPaused && (
+                <p className="text-xs text-amber-600 mt-1.5 font-medium flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Clanarina pauzirana
+                </p>
+              )}
               {selectedMember.discount_eligible && (
                 <p className="text-xs text-purple-600 mt-1.5 font-medium">
                   Pravo na popust · {selectedMember.discount_category}
@@ -348,6 +358,23 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
           )}
 
           {/* ── Warnings ── */}
+          {selectedMember && memberPaused && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex gap-3">
+              <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="font-semibold text-amber-800 text-sm">Clanarina je pauzirana</p>
+                <p className="text-amber-700 text-xs mt-0.5">
+                  Pauzirana od <span className="font-medium">{activeMembership.paused_date}</span> · {activeMembership.days_remaining_at_pause} {activeMembership.days_remaining_at_pause === 1 ? 'dan preostao' : 'dana preostalo'}.
+                </p>
+                <p className="text-amber-600 text-xs mt-0.5 italic">
+                  Molimo nastavite clanarinu na kartici clana pre prijave.
+                </p>
+              </div>
+            </div>
+          )}
+
           {selectedMember && memberExpired && !isFitpass(visitType) && (
             <WarningBox
               title="Clanarina istekla"
@@ -407,7 +434,7 @@ export default function CheckInModal({ date, onClose, onSuccess }) {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Tip posete</label>
                   <div className="space-y-2">
                     {VISIT_TYPES.map((vt) => {
-                      const disabled = vt.id === 'session' && (noMembership || memberExpired);
+                      const disabled = vt.id === 'session' && (noMembership || memberExpired || memberPaused);
                       return (
                         <VisitTypeBtn
                           key={vt.id}

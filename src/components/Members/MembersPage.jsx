@@ -91,7 +91,8 @@ export default function MembersPage({ jumpToMemberId, onClearJump }) {
           ) : (
             <ul>
               {members.map((m) => {
-                const expired = m.membership_id ? isExpired(m) : null;
+                const paused = !!m.is_paused;
+                const expired = m.membership_id && !paused ? isExpired(m) : false;
                 const active = selectedMemberId === m.id;
                 return (
                   <li key={m.id}>
@@ -110,7 +111,7 @@ export default function MembersPage({ jumpToMemberId, onClearJump }) {
                             #{m.id}{m.phone ? ` · ${m.phone}` : ''}
                           </p>
                         </div>
-                        <MembershipStatusDot expired={expired} hasMs={!!m.membership_id} />
+                        <MembershipStatusDot expired={expired} paused={paused} hasMs={!!m.membership_id} />
                       </div>
                       {m.membership_category && (
                         <p className="text-xs text-gray-500 mt-0.5 truncate">
@@ -161,8 +162,9 @@ export default function MembersPage({ jumpToMemberId, onClearJump }) {
   );
 }
 
-function MembershipStatusDot({ expired, hasMs }) {
+function MembershipStatusDot({ expired, paused, hasMs }) {
   if (!hasMs) return <span className="w-2 h-2 rounded-full bg-gray-200 shrink-0" title="Bez clanarine" />;
+  if (paused) return <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" title="Pauzirana" />;
   if (expired) return <span className="w-2 h-2 rounded-full bg-red-400 shrink-0" title="Istekla" />;
   return <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" title="Aktivna" />;
 }

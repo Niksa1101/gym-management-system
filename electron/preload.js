@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('api', {
   createMembership: (data) => ipcRenderer.invoke('memberships:create', data),
   updateMembership: (id, data) => ipcRenderer.invoke('memberships:update', id, data),
   deactivateMembership: (id) => ipcRenderer.invoke('memberships:deactivate', id),
+  pauseMembership: (id) => ipcRenderer.invoke('memberships:pause', id),
+  resumeMembership: (id) => ipcRenderer.invoke('memberships:resume', id),
 
   // Attendance
   getAttendanceByDate: (date) => ipcRenderer.invoke('attendance:getByDate', date),

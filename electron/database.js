@@ -46,10 +46,25 @@ async function init() {
       start_date TEXT NOT NULL,
       expiry_date TEXT NOT NULL,
       is_active INTEGER DEFAULT 1,
+      is_paused INTEGER DEFAULT 0,
+      paused_date TEXT,
+      days_remaining_at_pause INTEGER,
+      sessions_remaining_at_pause INTEGER,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (member_id) REFERENCES members(id)
     );
   `);
+
+  // Migration: add pause columns to existing databases that pre-date this feature
+  const pauseMigrations = [
+    `ALTER TABLE memberships ADD COLUMN is_paused INTEGER DEFAULT 0`,
+    `ALTER TABLE memberships ADD COLUMN paused_date TEXT`,
+    `ALTER TABLE memberships ADD COLUMN days_remaining_at_pause INTEGER`,
+    `ALTER TABLE memberships ADD COLUMN sessions_remaining_at_pause INTEGER`,
+  ];
+  for (const sql of pauseMigrations) {
+    try { db.run(sql); } catch (e) { /* column already exists — safe to ignore */ }
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS attendance (
@@ -132,7 +147,7 @@ function getAllMembers() {
       ms.id as membership_id,
       ms.membership_type, ms.membership_category,
       ms.expiry_date, ms.sessions_used, ms.sessions_total,
-      ms.start_date, ms.is_active
+      ms.start_date, ms.is_active, ms.is_paused
     FROM members m
     LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.is_active = 1
     ORDER BY m.surname, m.name
@@ -146,7 +161,7 @@ function searchMembers(query) {
       ms.id as membership_id,
       ms.membership_type, ms.membership_category,
       ms.expiry_date, ms.sessions_used, ms.sessions_total,
-      ms.start_date, ms.is_active
+      ms.start_date, ms.is_active, ms.is_paused
     FROM members m
     LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.is_active = 1
     WHERE m.name LIKE ? OR m.surname LIKE ? OR CAST(m.id AS TEXT) LIKE ?
@@ -237,6 +252,47 @@ function deactivateMembership(id) {
   return { success: true };
 }
 
+function pauseMembership(id) {
+  const ms = get(`SELECT * FROM memberships WHERE id = ?`, [id]);
+  if (!ms || !ms.is_active || ms.is_paused) return { success: false, error: 'not_pausable' };
+
+  const today = new Date().toISOString().split('T')[0];
+  const expiryDate = new Date(ms.expiry_date + 'T00:00:00');
+  const todayDate = new Date(today + 'T00:00:00');
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysRemaining = Math.max(0, Math.round((expiryDate - todayDate) / msPerDay));
+  const sessionsRemaining = ms.sessions_total != null ? ms.sessions_total - ms.sessions_used : null;
+
+  run(
+    `UPDATE memberships
+     SET is_paused = 1, paused_date = ?, days_remaining_at_pause = ?, sessions_remaining_at_pause = ?
+     WHERE id = ?`,
+    [today, daysRemaining, sessionsRemaining, id]
+  );
+  save();
+  return { success: true };
+}
+
+function resumeMembership(id) {
+  const ms = get(`SELECT * FROM memberships WHERE id = ?`, [id]);
+  if (!ms || !ms.is_paused) return { success: false, error: 'not_paused' };
+
+  const today = new Date().toISOString().split('T')[0];
+  const newExpiry = new Date(today + 'T00:00:00');
+  newExpiry.setDate(newExpiry.getDate() + (ms.days_remaining_at_pause || 0));
+  const newExpiryStr = newExpiry.toISOString().split('T')[0];
+
+  run(
+    `UPDATE memberships
+     SET is_paused = 0, paused_date = NULL, days_remaining_at_pause = NULL,
+         sessions_remaining_at_pause = NULL, expiry_date = ?
+     WHERE id = ?`,
+    [newExpiryStr, id]
+  );
+  save();
+  return { success: true };
+}
+
 // ── Attendance ────────────────────────────────────────────────────────────────
 
 function getAttendanceByDate(date) {
@@ -264,6 +320,9 @@ function checkIn(data) {
 
   if (visit_type === 'session' && membership_id) {
     const membership = get(`SELECT * FROM memberships WHERE id = ?`, [membership_id]);
+    if (membership && membership.is_paused) {
+      return { success: false, error: 'membership_paused' };
+    }
     if (membership && membership.sessions_total) {
       session_counted = 1;
       const newUsed = membership.sessions_used + 1;
@@ -366,6 +425,8 @@ module.exports = {
   createMembership,
   updateMembership,
   deactivateMembership,
+  pauseMembership,
+  resumeMembership,
   getAttendanceByDate,
   getAttendanceByMembershipId,
   checkIn,

@@ -73,6 +73,19 @@ export default function MemberCard({ memberId, onDeleted, onUpdated }) {
     onUpdated();
   }
 
+  async function handlePauseMembership(msId) {
+    if (!window.confirm('Pauzirati ovu clanarinu?')) return;
+    await window.api.pauseMembership(msId);
+    load();
+    onUpdated();
+  }
+
+  async function handleResumeMembership(msId) {
+    await window.api.resumeMembership(msId);
+    load();
+    onUpdated();
+  }
+
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-gray-400 text-sm">Loading…</div>
@@ -175,6 +188,8 @@ export default function MemberCard({ memberId, onDeleted, onUpdated }) {
               expanded={expandedHistoryIds.has(activeMembership.id)}
               onToggle={() => toggleHistory(activeMembership.id)}
               onDeactivate={() => handleDeactivateMembership(activeMembership.id)}
+              onPause={() => handlePauseMembership(activeMembership.id)}
+              onResume={() => handleResumeMembership(activeMembership.id)}
             />
           ) : (
             <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-6 text-center">
@@ -215,14 +230,17 @@ export default function MemberCard({ memberId, onDeleted, onUpdated }) {
 
 // ── Active membership card ────────────────────────────────────────────────────
 
-function ActiveMembershipCard({ membership, attendance, expired, expanded, onToggle, onDeactivate }) {
+function ActiveMembershipCard({ membership, attendance, expired, expanded, onToggle, onDeactivate, onPause, onResume }) {
   const unlimited = isUnlimited(membership.membership_category);
+  const paused = !!membership.is_paused;
   const sessionsLeft = membership.sessions_total
     ? membership.sessions_total - membership.sessions_used
     : null;
 
+  const borderColor = paused ? 'border-amber-300' : expired ? 'border-red-300' : 'border-green-300';
+
   return (
-    <div className={`bg-white rounded-2xl border-2 ${expired ? 'border-red-300' : 'border-green-300'} overflow-hidden`}>
+    <div className={`bg-white rounded-2xl border-2 ${borderColor} overflow-hidden`}>
       <div className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -230,21 +248,67 @@ function ActiveMembershipCard({ membership, attendance, expired, expanded, onTog
               <span className="font-bold text-gray-900">
                 {formatMembershipLabel(membership.membership_type, membership.membership_category)}
               </span>
-              <StatusBadge expired={expired} />
+              <StatusBadge expired={expired} paused={paused} />
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
               <p className="text-xs text-gray-500">Pocetak: {formatDate(membership.start_date)}</p>
-              <p className="text-xs text-gray-500">Istice: {formatDate(membership.expiry_date)}</p>
+              {!paused && <p className="text-xs text-gray-500">Istice: {formatDate(membership.expiry_date)}</p>}
             </div>
           </div>
-          <button
-            onClick={onDeactivate}
-            className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0"
-            title="Deaktiviraj clanarinu"
-          >
-            Deaktiviraj
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {!expired && (
+              paused ? (
+                <button
+                  onClick={onResume}
+                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 transition-colors"
+                  title="Nastavi clanarinu"
+                >
+                  Nastavi
+                </button>
+              ) : (
+                <button
+                  onClick={onPause}
+                  className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors"
+                  title="Pauziraj clanarinu"
+                >
+                  Pauziraj
+                </button>
+              )
+            )}
+            <button
+              onClick={onDeactivate}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+              title="Deaktiviraj clanarinu"
+            >
+              Deaktiviraj
+            </button>
+          </div>
         </div>
+
+        {/* Paused info banner */}
+        {paused && (
+          <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 space-y-1">
+            <div className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs font-semibold text-amber-800">
+                Pauzirana od {formatDate(membership.paused_date)}
+              </p>
+            </div>
+            <p className="text-xs text-amber-700 pl-5">
+              {membership.days_remaining_at_pause} {membership.days_remaining_at_pause === 1 ? 'dan preostao' : 'dana preostalo'} pri pauziranju
+            </p>
+            {membership.sessions_remaining_at_pause != null && (
+              <p className="text-xs text-amber-700 pl-5">
+                {membership.sessions_remaining_at_pause} {membership.sessions_remaining_at_pause === 1 ? 'trening preostao' : 'treninga preostalo'} pri pauziranju
+              </p>
+            )}
+            <p className="text-xs text-amber-600 pl-5 italic">
+              Po nastavku istice za {membership.days_remaining_at_pause} {membership.days_remaining_at_pause === 1 ? 'dan' : 'dana'} od danas
+            </p>
+          </div>
+        )}
 
         {/* Session progress */}
         {!unlimited && membership.sessions_total && (
@@ -255,14 +319,14 @@ function ActiveMembershipCard({ membership, attendance, expired, expanded, onTog
                 {membership.sessions_used} / {membership.sessions_total}
               </span>
             </div>
-            <SessionProgressBar used={membership.sessions_used} total={membership.sessions_total} />
-            {!expired && sessionsLeft !== null && (
+            <SessionProgressBar used={membership.sessions_used} total={membership.sessions_total} paused={paused} />
+            {!expired && !paused && sessionsLeft !== null && (
               <p className="text-xs text-gray-400 mt-1">{sessionsLeft} {sessionsLeft === 1 ? 'trening preostao' : 'treninga preostalo'}</p>
             )}
           </div>
         )}
 
-        {unlimited && (
+        {unlimited && !paused && (
           <div className="mt-3 text-xs text-gray-500 flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -431,7 +495,17 @@ function AttendanceGrid({ attendance, sessionsTotal, unlimited }) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function StatusBadge({ expired }) {
+function StatusBadge({ expired, paused }) {
+  if (paused) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+        <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        PAUZIRANA
+      </span>
+    );
+  }
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
       expired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
@@ -441,12 +515,13 @@ function StatusBadge({ expired }) {
   );
 }
 
-function SessionProgressBar({ used, total }) {
+function SessionProgressBar({ used, total, paused }) {
   const pct = Math.min(100, Math.round((used / total) * 100));
+  const barColor = paused ? 'bg-amber-400' : pct >= 100 ? 'bg-red-400' : 'bg-blue-500';
   return (
     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
       <div
-        className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-red-400' : 'bg-blue-500'}`}
+        className={`h-full rounded-full transition-all ${barColor}`}
         style={{ width: `${pct}%` }}
       />
     </div>

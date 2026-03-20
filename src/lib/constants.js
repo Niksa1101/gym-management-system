@@ -61,6 +61,7 @@ export function isUnlimited(category) {
 
 export function isExpired(membership) {
   if (!membership) return true;
+  if (membership.is_paused) return false; // paused clock is frozen — not expired
   const today = todayStr();
   if (today > membership.expiry_date) return true;
   if (membership.sessions_total && membership.sessions_used >= membership.sessions_total) return true;

@@ -53,6 +53,8 @@ ipcMain.handle('memberships:getActive', (_, memberId) => db.getActiveMembership(
 ipcMain.handle('memberships:create', (_, data) => db.createMembership(data));
 ipcMain.handle('memberships:update', (_, id, data) => db.updateMembership(id, data));
 ipcMain.handle('memberships:deactivate', (_, id) => db.deactivateMembership(id));
+ipcMain.handle('memberships:pause', (_, id) => db.pauseMembership(id));
+ipcMain.handle('memberships:resume', (_, id) => db.resumeMembership(id));
 
 // ── Attendance ────────────────────────────────────────────────────────────────
 ipcMain.handle('attendance:getByDate', (_, date) => db.getAttendanceByDate(date));
